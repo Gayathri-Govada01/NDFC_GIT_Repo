@@ -1,0 +1,18 @@
+##template properties
+name =NDFC_export;
+description = ;
+tags = ;
+userDefined = true;
+supportedPlatforms = All;
+templateType = POLICY;
+templateSubType = INTERFACE_MGMT;
+contentType = TEMPLATE_CLI;
+implements = ;
+dependencies = ;
+published = false;
+imports = ;
+##
+##template variables
+##
+##template content
+##

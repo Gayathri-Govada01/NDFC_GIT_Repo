@@ -1,0 +1,809 @@
+##template properties
+name =Network_Classic;
+description = Network definition for Classic Easy Fabrics;
+tags =networkClassic;
+userDefined = false;
+supportedPlatforms = All;
+templateType = PROFILE;
+templateSubType = VLAN;
+contentType = PYTHON_CLI;
+implements = ;
+dependencies = ;
+published = false;
+imports = ;
+##
+##template variables
+#    Copyright (c) 2018-2022 by Cisco Systems, Inc.
+#    All rights reserved.
+
+@(IsMandatory=false, IsVrfName=true)
+string vrfName;
+
+@(IsMandatory=false, IsGateway=true, DisplayName="IPv4 Gateway/NetMask", Description="Example 192.0.2.1/24. Address for FHRP VIP")
+ipV4AddressWithSubnet gatewayIpAddress;
+
+@(IsMandatory="gatewayIpAddress!=null", IsShow="gatewayIpAddress!=null", DisplayName="Interface IPv4 addr<br>on active", Description="Example 192.0.2.2. Interface IP address on the active/master device")
+ipV4Address pip1;
+
+@(IsMandatory="gatewayIpAddress!=null", IsShow="gatewayIpAddress!=null", DisplayName="Interface IPv4 addr<br>on standby", Description="Example 192.0.2.3. Interface IP address on the standby/backup device")
+ipV4Address pip2;
+
+@(IsMandatory=false, IsShow="redundancyType!=vrrp", DisplayName="IPv6 Gateway/NetMask", Description="IPv6 address for VIP. For VRRPv3, this is the VRRP secondary global IPv6 address")
+ipV6AddressWithSubnet gatewayIpV6Address;
+
+@(IsMandatory="gatewayIpV6Address!=null", IsShow="gatewayIpV6Address!=null", DisplayName="Interface IPv6 addr<br>on active", Description="Interface IPv6 address on the active/master device")
+ipV6Address ipv6_pip1;
+
+@(IsMandatory="gatewayIpV6Address!=null", IsShow="gatewayIpV6Address!=null", DisplayName="Interface IPv6 addr<br>on standby", Description="Interface IPv6 address on the standby/backup device")
+ipV6Address ipv6_pip2;
+
+@(IsMandatory="gatewayIpV6Address!=null && redundancyType==vrrpv3", IsShow="gatewayIpV6Address!=null && redundancyType==vrrpv3", DisplayName="IPv6 Link local address", Description="Primary virtual link-local IPv6 address used in VRRPv3, mandatory for IPv6 VRRPv3")
+ipV6Address ipv6_linklocal_vip;
+
+@(IsMandatory=false, Section="Attach/Hidden", IsVlanId=true)
+integer vlanId;
+ 
+@(IsMandatory=true, Section="Hidden", IsSegmentId=true)
+integer segmentId;
+ 
+@(IsMandatory=false, DisplayName="Layer 2 Only", IsLayer2Only=true)
+boolean isLayer2Only{
+   defaultValue=false;
+   };
+
+@(IsMandatory=false, DisplayName="VLAN Name", Description = "if > 32 chars enable:system vlan long-name")
+string vlanName {
+  regularExpr=^[^\?,\\,\s]*$;
+  minLength = 0;
+  maxLength = 128;
+};
+
+@(IsMandatory=false, DisplayName="Interface Description", Description="For interface on the standalone, or the active/master switch")
+string intfDescription;
+
+@(IsMandatory=false, DisplayName="Standby Interface<br>Description", Description="For interface on the standby/backup switch")
+string intfDescription2;
+
+@(IsMandatory=false, DisplayName="MTU for L3 interface", Description="68-9216. 1280-9216 if IPv6 address is present")
+integer mtu {
+  min = 68;
+  max = 9216;
+};
+
+@(IsMandatory=false, DisplayName="Routing Tag", Description="The value should match 'Route-Map Tag' in Fabric Settings for routes to be advertised within the fabric. 0-4294967295 or blank")
+long tag {
+  min = 0;
+  max = 4294967295;
+  defaultValue = 12345;
+};
+
+@(IsMandatory=false, DisplayName="First Hop<br>Redundancy Protocol", IsRedundancyProtocol=true, ReadOnly=true, Description="Read-only, from Fabric Settings", Section="Advanced")
+string redundancyType;
+
+@(IsMandatory=false, IsInstance=true, DisplayName="FHRP Active")
+boolean isActive;
+
+@(IsMandatory=false, DisplayName="Ignore FHRP priority", Description="No FHRP priority will be set for the network", Section="Advanced")
+boolean ignorePriority {
+  defaultValue=false;
+};
+
+@(IsMandatory=false, IsShow="ignorePriority!=true", DisplayName="Active/master<br>Switch Priority", Description="Priority is 120 if blank", Section="Advanced")
+integer activePriority {
+  min = 0;
+  max = 255;
+  defaultValue=120;
+};
+
+@(IsMandatory=false, IsShow="ignorePriority!=true", DisplayName="Standby/backup<br>Switch Priority", Description="Priority is 100 if blank", Section="Advanced")
+integer standbyPriority {
+  min = 0;
+  max = 255;
+  defaultValue=100;
+};
+
+@(IsMandatory=false, DisplayName="Enable Preempt", Description="Overthrow lower priority Active routers", Section="Advanced")
+boolean preempt {
+  defaultValue=true;
+};
+
+@(IsMandatory=false, IsShow="preempt==true", DisplayName="Preempt delay minimum time", Description="Delay time at least this long", Section="Advanced")
+integer minimum {
+  min = 0;
+  max = 3600;
+  defaultValue=0;
+};
+
+@(IsMandatory=false, IsShow="preempt==true", DisplayName="Preempt delay time after reload", Description="Delay time after reload", Section="Advanced")
+integer reload {
+  min = 0;
+  max = 3600;
+  defaultValue=0;
+};
+
+@(IsMandatory=false, IsShow="preempt==true", DisplayName="Preempt delay sync time", Description="Delay wait time for IP redundancy clients", Section="Advanced")
+integer sync {
+  min = 0;
+  max = 3600;
+  defaultValue=0;
+};
+
+@(IsMandatory="gatewayIpAddress!=null || gatewayIpV6Address!=null", DisplayName="HSRP/VRRP Group #", Description="0-255 for HSRPv1, 0-4095 for HSRPv2, 1-255 for VRRP", Section="Advanced")
+integer GROUP {
+  min = 0;
+  max = 4095;
+  defaultValue=1;
+};
+
+@(IsMandatory=false, DisplayName="HSRP/VRRP Group # for IPv6 if different from IPv4", Description="0-4095 for HSRP, 1-255 for VRRP. If unspecified, same group number will be used for IPv4 and IPv6", Section="Advanced")
+integer GROUP_V6 {
+  min = 0;
+  max = 4095;
+};
+
+@(IsMandatory=false, IsShow="redundancyType==hsrp", DisplayName="Virtual MAC Address", Section="Advanced")
+macAddress mac;
+
+@(IsMandatory=false, IsShow="redundancyType==hsrp", DisplayName="HSRP Version", Description="1 or 2", Section="Advanced")
+enum HSRP_VERSION {
+  validValues=1,2;
+  defaultValue=2;
+};
+
+@(IsMandatory=false, IsShow="redundancyType==vrrp || redundancyType==vrrpv3", DisplayName="Enable VRRP Group", Description="Whether 'no shutdown', or 'shutdown' the VRRP group", Section="Advanced")
+boolean VRRP_ENABLE {
+  defaultValue = true;
+};
+
+@(IsMandatory=false, DisplayName="Enable IP Redirects", Description="Enable IPv4/IPv6 redirects on the interface", Section="Advanced")
+boolean ENABLE_IP_REDIRECTS {
+  defaultValue=false;
+};
+
+@(IsMandatory=false, DisplayName="Enable PIM Sparse-mode", Description="Enable PIM sparse-mode on the interface", Section="Advanced")
+boolean ENABLE_PIM_SPARSE {
+  defaultValue=false;
+};
+
+@(IsMandatory=false, IsShow="ENABLE_PIM_SPARSE==true", DisplayName="PIM DR Priority", Description="<1-4294967295> Configure priority for PIM DR election on the interface, default is 1", Section="Advanced")
+long PIM_DR_PRIORITY {
+  min = 1;
+  max = 4294967295;
+  defaultValue = 1;
+};
+
+@(IsMandatory=false, IsShow="redundancyType==hsrp", DisplayName="MD5 Authentication key-string", Description="Authentication key in string format", Section="Advanced")
+string MD5_AUTH_KEY_STR {
+  minLength = 1;
+  maxLength = 64;
+};
+
+#TBR
+@(IsMandatory=false, IsHidden=true, IsInstance=true , IsVPC=true)
+boolean isVPC {
+  defaultValue = false;
+};
+
+@(IsMandatory=false, DisplayName="Network Name", Section="Hidden", IsNetworkName=true)
+string networkName;
+
+@(IsMandatory=false, DisplayName="DHCP Relay Server Information (Max 16)", Section="Advanced")
+struct ITEM {
+  @(IsMandatory=true, DisplayName="Server IPv4/IPv6 Address")
+  ipAddress srvrAddr;
+  @(IsMandatory=false, DisplayName="Server VRF", Description="Server VRF name, enter 'default' for default VRF")
+  string srvrVrf {
+    regularExpr=^[a-zA-Z0-9:_-]*$;
+    minLength = 0;
+    maxLength = 32;
+  };
+} dhcpServers[];
+
+@(IsMandatory=false, DisplayName="Routing Protocol", Description="VRF Lite Aggregation-Core or Collapsed Core-WAN Peering Protocol (from Fabric Settings)", Section="Advanced", ReadOnly=true)
+enum VRF_LITE_PROTOCOL {
+  validValues=ebgp,ospf,none;
+  defaultValue=ebgp;
+};
+
+@(IsMandatory=false, IsShow="VRF_LITE_PROTOCOL==ospf", DisplayName="Enable OSPF Authentication", Description="Applicable to OSPF only", Section="Advanced")
+boolean OSPF_AUTH_ENABLE {
+defaultValue=false;
+};
+
+@(IsMandatory="OSPF_AUTH_ENABLE==true", IsShow="OSPF_AUTH_ENABLE==true", DisplayName="OSPF Authentication Key ID", Description="(Min:0, Max:255)", Section="Advanced")
+integer OSPF_AUTH_KEY_ID {
+min = 0;
+max = 255;
+defaultValue = 127;
+};
+
+@(IsMandatory="OSPF_AUTH_ENABLE==true", IsShow="OSPF_AUTH_ENABLE==true", DisplayName="OSPF Authentication Key", Description="3DES Encrypted", Section="Advanced")
+string OSPF_AUTH_KEY {
+minLength = 1;
+maxLength = 256;
+};
+
+@(IsMandatory=false, IsShow="VRF_LITE_PROTOCOL==ospf && gatewayIpAddress!=null", DisplayName="Enable OSPF Passive Interface", Description="Suppress routing updates on the interface", Section="Advanced")
+boolean enableOspfPassive {
+  defaultValue=true;
+};
+
+@(IsMandatory=false, IsShow="VRF_LITE_PROTOCOL==ospf && gatewayIpV6Address!=null", DisplayName="Enable OSPFv3 Passive Interface", Description="Suppress routing updates on the interface", Section="Advanced")
+boolean enableOspfv3Passive {
+  defaultValue=true;
+};
+
+@(IsMandatory=false, DisplayName="Enable Netflow", Description="Netflow is supported only if it is enabled on fabric", Section="Advanced")
+boolean ENABLE_NETFLOW {
+    defaultValue = false;
+};
+
+@(IsMandatory=false, IsShow="ENABLE_NETFLOW==true", DisplayName="Interface Vlan Netflow Monitor", Description="Applicable only if 'Layer 2 Only' is not enabled. Provide monitor name defined in Fabric Settings for Layer 3 Record", Section="Advanced")
+string SVI_NETFLOW_MONITOR;
+
+@(IsMandatory=false, IsShow="ENABLE_NETFLOW==true", DisplayName="Vlan Netflow Monitor", Description="Provide monitor name defined in Fabric Settings for Layer 3 Record", Section="Advanced")
+string VLAN_NETFLOW_MONITOR;
+
+@(IsMandatory=false, IsShow="ENABLE_NETFLOW==true", DisplayName="NetFlow Sampler", Description="Netflow sampler name, applicable to N7K only", Section="Advanced")
+string NETFLOW_SAMPLER;
+
+##
+ 
+##template content
+from com.cisco.dcbu.vinci.rest.services.jython import PTIWrapper
+from com.cisco.dcbu.vinci.rest.services.jython import Wrapper
+from com.cisco.dcbu.vinci.rest.services.jython import WrappersResp
+from com.cisco.dcbu.vinci.rest.services.jython import VpcWrapper
+from com.cisco.dcbu.vinci.rest.services.jython import InventoryWrapper
+from com.cisco.dcbu.vinci.rest.services.jython import Helper
+from com.cisco.dcbu.pti.resource import CtrlPolicySearch
+from com.cisco.dcbu.vinci.rest.services.jython import VPCMetaDataType
+from com.cisco.dcbu.vinci.rest.services.jython import FabricWrapper
+from com.cisco.dcbu.vinci.rest.services.jython import TopologyWrapper
+from com.cisco.dcbu.vinci.rest.services.jython import TopDownOverlayWrapper
+
+from string import Template
+from utility import *
+from topology import *
+import ast
+
+def getGlobals(additionalDict=None):
+    newDict = {}
+    gDict = globals()
+    for key in gDict.keys():
+        newDict[key] = gDict[key]
+    if additionalDict:
+        newDict.update(additionalDict)
+    return newDict
+
+def attach(dictObj):
+    try:
+        Wrapper.print("Network_Classic attach vlan %s, %s, isLayer2Only %s, dictObj %s, redundancyType %s" % (vlanId, networkName, isLayer2Only, dictObj, redundancyType))
+        respObj = WrappersResp.getRespObj()
+
+        if redundancyType == "hsrp" and HSRP_VERSION == "":
+            Wrapper.print("Network_Classic attach vlan %s HSRP_VERSION empty: %s" % (vlanId, HSRP_VERSION))
+            respObj.addErrorReport("attach", "empty HSRP_VERSION")
+            respObj.setFailureRetCode()
+            return respObj
+
+        try:
+            vrf_name = vrfName
+        except:
+            vrf_name = ""
+            pass
+        Wrapper.print("Network: vrf passed in is %s" %(vrf_name))
+        
+        SERIAL_NUMBER=dictObj["SERIAL_NUMBER"]
+        source_entity_id=dictObj["PROFILE_ID"]
+        FABRIC_NAME = Util.exe(InventoryWrapper.getFabricNameForSwitch(SERIAL_NUMBER))
+        vlan_str = "vlan %s" % vlanId
+        vlanIntName = "Vlan%s" % vlanId
+
+        isMyselfVPC = Util.exe(VpcWrapper.isVpc("UNUSED", SERIAL_NUMBER))
+        if not isMyselfVPC:
+            errorMsg = "Unsupported topology: Aggregation switch should be part of a vPC pair"
+            Wrapper.print(errorMsg)
+            respObj.addErrorReport("attach", errorMsg)
+            respObj.setFailureRetCode()
+            return respObj
+
+        dhcpEnabled = Util.exe(FabricWrapper.get(FABRIC_NAME)).nvPairs.get("ENABLE_TENANT_DHCP","true")
+        if dhcpEnabled != "true" and dhcpServers != "":
+            errorMsg = ("Fabric [%s]: DHCP Relay Servers are configured but Tenant DHCP is not enabled in Fabric Settings. "
+                        "Please enable the feature in Fabric Settings or delete all DHCP Relay Servers." % FABRIC_NAME)
+            respObj.addErrorReport("attach", errorMsg)
+            respObj.setFailureRetCode()
+            return respObj
+
+        # Do not allow network to be attached to multiple agg pairs, even for L2 networks
+        switchListResp = TopDownOverlayWrapper.getSwitchList(FABRIC_NAME, networkName, "aggregation")
+        if switchListResp.isRetCodeFailure():
+            Wrapper.print("Network %s/%s Operation failed in TopDownOverlayWrapper.getSwitchList!!!"%(FABRIC_NAME, networkName))
+            return switchListResp
+
+        switchList= switchListResp.getValue()
+        Wrapper.print("Network %s/%s: attached switchList %s" %(FABRIC_NAME, networkName, switchList))
+        if switchList:
+            vpcPeerSn = Util.exe(VpcWrapper.get(VPCMetaDataType.PEER_DEVICE_SN, FABRIC_NAME, SERIAL_NUMBER))
+            for deviceSn in switchList:
+                if deviceSn != SERIAL_NUMBER and deviceSn != vpcPeerSn:
+                    deviceHostName = Util.exe(InventoryWrapper.getHostName(deviceSn))
+                    errorMsg = "%s is already attached to [%s/%s]. Can not attach it to multiple Aggregation pairs. " % (networkName, deviceHostName, deviceSn)
+                    Wrapper.print(errorMsg)
+                    respObj.addErrorReport("attach", errorMsg)
+                    respObj.setFailureRetCode()
+                    return respObj
+
+        cb = ConfigBuilder()
+        cb.add_config(                              'vlan $vlanId')
+        if vlanName:
+            defaultVlanName = "VLAN" + vlanId.zfill(4)
+            if vlanName != defaultVlanName:
+                cb.add_config(                      '  name $vlanName')
+
+        #TODO: Do we need to handle layer 2 netflow monitor here?
+        if isLayer2Only == "true" or redundancyType == "none":
+            genconfig = Template(cb.get_config()).substitute(getGlobals())
+            respObj.setGeneratedConfig(genconfig)
+            respObj.setSuccessRetCode()
+            return respObj
+
+        try:
+            Wrapper.print("Network_Classic pip1 %s, pip2 %s isMyselfVPC %s isActive %s activePriority %s standbyPriority %s ignorePriority %s" % 
+            (pip1, pip2, isMyselfVPC, isActive, activePriority, standbyPriority, ignorePriority))
+        except:
+            errorMsg = "Need to set 'isActive' field to 'true' or 'false' for vPC devices. "
+            Wrapper.print(errorMsg)
+            respObj.addErrorReport("attach", errorMsg)
+            respObj.setFailureRetCode()
+            return respObj
+
+        if isActive != "true" and isActive != "false":
+            errorMsg = "Need to set 'isActive' field to 'true' or 'false' for vPC devices. "
+            Wrapper.print(errorMsg)
+            respObj.addErrorReport("attach", errorMsg)
+            respObj.setFailureRetCode()
+            return respObj
+
+        if gatewayIpAddress:
+            (VIP,PREFIX) = gatewayIpAddress.split('/')
+        else:
+            VIP = PREFIX = ""
+
+        try:
+            ipv6_gateway_ip = gatewayIpV6Address
+        except:
+            ipv6_gateway_ip = ""
+        try:
+            v6_pip1 = ipv6_pip1
+            v6_pip2 = ipv6_pip2
+        except:
+            v6_pip1 = v6_pip2 = ""
+        try:
+            v6_linklocal_vip = ipv6_linklocal_vip
+        except:
+            v6_linklocal_vip = ""
+
+        if ipv6_gateway_ip:
+            ipv6_VIP, ipv6_PREFIX = ipv6_gateway_ip.split("/")
+        else:
+            ipv6_VIP = ipv6_PREFIX = ""
+
+        # update GROUP_V6 in Globals in case GROUP_V6 takes the value of GROUP
+        global GROUP_V6
+        try:
+            if GROUP_V6 == "":
+                GROUP_V6 = GROUP
+        except:
+            GROUP_V6 = GROUP
+            pass
+
+        fabricSettings = Util.exe(FabricWrapper.get(FABRIC_NAME)).getNvPairs()
+        vrfLiteProtocol = fabricSettings.get("VRF_LITE_PROTOCOL", "ebgp")
+        ospfTag = fabricSettings.get("LINK_STATE_ROUTING_TAG", "")
+        areaId = fabricSettings.get("OSPF_AREA_ID", "")
+        ospfv3Tag = fabricSettings.get("OSPFv3_ROUTING_TAG", "")
+        areaIdv3 = fabricSettings.get("OSPFv3_AREA_ID", "")
+
+        try:
+            ospfAuthEnable = OSPF_AUTH_ENABLE
+        except:
+            ospfAuthEnable = "false"
+
+        try:
+            ospfAuthKey = OSPF_AUTH_KEY if ospfAuthEnable == "true" else ""
+            ospfAuthKeyId = OSPF_AUTH_KEY_ID if ospfAuthEnable == "true" else ""
+        except:
+            ospfAuthKey = ospfAuthKeyId = ""
+
+        if gatewayIpAddress and (pip1 == "" or pip2 == ""):
+            errorMsg = "Network interface IPv4 address fields not filled while IPv4 Gateway address is filled. They must be present for attaching network to vPC."
+            Wrapper.print("attach error: %s" % errorMsg)
+            respObj.addErrorReport("attach", errorMsg)
+            respObj.setFailureRetCode()
+            return respObj
+
+        if ipv6_gateway_ip and (v6_pip1 == "" or v6_pip2 == ""):
+            errorMsg = "Network interface IPv6 address fields not filled while IPv6 Gateway address is filled. They must be present for attaching network to vPC."
+            Wrapper.print("attach error: %s" % errorMsg)
+            respObj.addErrorReport("attach", errorMsg)
+            respObj.setFailureRetCode()
+            return respObj
+
+        if (redundancyType == "vrrpv3") and \
+            ((ipv6_gateway_ip and v6_linklocal_vip == "") or (v6_linklocal_vip and ipv6_gateway_ip == "")):
+            errorMsg = "Both IPv6 Gateway/NetMask and IPv6 Link local address fields need to be filled for attaching VRRP network to vPC."
+            Wrapper.print("attach error: %s" % errorMsg)
+            respObj.addErrorReport("attach", errorMsg)
+            respObj.setFailureRetCode()
+            return respObj
+
+        tag_str = " tag {}".format(tag) if tag else ""
+
+        try:
+            enableIpRedirects = ENABLE_IP_REDIRECTS
+        except:
+            enableIpRedirects = "false"
+
+        try:
+            enablePimSparse = ENABLE_PIM_SPARSE
+        except:
+            enablePimSparse = "false"
+
+        try:
+            pimDrPriority = str(PIM_DR_PRIORITY)
+        except:
+            pimDrPriority = "1"
+
+        try:
+            md5AuthKeyStr = MD5_AUTH_KEY_STR
+        except:
+            md5AuthKeyStr = ""
+
+        cb.add_config(                          'interface Vlan$vlanId')
+        if vrfName and vrfName != "default":
+            cb.add_config(                      '  vrf member $vrfName')
+        if gatewayIpAddress:
+            if isActive == "true":
+                cb.add_config(                  '  ip address $pip1/'+PREFIX+'$tag_str')
+            else:
+                cb.add_config(                  '  ip address $pip2/'+PREFIX+'$tag_str')
+            #TODO: Should we check if feature pim is enabled? How about ipv6 PIM scenarios?
+            if enablePimSparse == "true":
+                cb.add_config(                  '  ip pim sparse-mode')
+                if pimDrPriority != "" and pimDrPriority != "1":
+                    cb.add_config(              '  ip pim dr-priority ' + pimDrPriority)
+        if gatewayIpV6Address:
+            if isActive == "true":
+                cb.add_config(                  '  ipv6 address $ipv6_pip1/'+ipv6_PREFIX+'$tag_str')
+            else:
+                cb.add_config(                  '  ipv6 address $ipv6_pip2/'+ipv6_PREFIX+'$tag_str')
+        if (gatewayIpAddress or gatewayIpV6Address):
+            if enableIpRedirects != "true":
+                cb.add_configs([                '  no ip redirects',
+                                                '  no ipv6 redirects'])
+        if mtu != "" and mtu != "1500":
+            cb.add_config(                      '  mtu $mtu')
+        if isActive == "true" and intfDescription:
+            cb.add_config(                      '  description $intfDescription')
+        elif isActive != "true" and intfDescription2:
+            cb.add_config(                      '  description $intfDescription2')
+        cb.add_config(                          '  no shutdown')
+        if dhcpServers != "":
+            dhcpServerList = ast.literal_eval(dhcpServers)
+            for item in dhcpServerList["dhcpServers"]:
+                srvrAddr = item["srvrAddr"]
+                srvrVrf = item["srvrVrf"]
+                if srvrVrf != "" and srvrVrf.lower() != vrfName.lower():
+                    if ":" in srvrAddr:
+                        cb.add_config(          '  ipv6 dhcp relay address '+srvrAddr+' use-vrf '+srvrVrf)
+                    else:
+                        cb.add_config(          '  ip dhcp relay address '+srvrAddr+' use-vrf '+srvrVrf)
+                else:
+                    if ":" in srvrAddr:
+                        cb.add_config(          '  ipv6 dhcp relay address '+srvrAddr)
+                    else:
+                        cb.add_config(          '  ip dhcp relay address '+srvrAddr)
+
+        if vrfLiteProtocol == "ospf":
+            if gatewayIpAddress and ospfTag:
+                if ospfAuthKey:
+                    cb.add_config(              '  ip ospf message-digest-key $OSPF_AUTH_KEY_ID md5 3 $OSPF_AUTH_KEY')
+                cb.add_config(                  '  ip router ospf ' + ospfTag +' area ' + areaId)
+                if enableOspfPassive == "true":
+                    cb.add_config(              '  ip ospf passive-interface')
+
+            if gatewayIpV6Address and ospfv3Tag:
+                cb.add_config(                  '  ipv6 router ospfv3 ' + ospfv3Tag +' area ' + areaIdv3)
+                if enableOspfv3Passive == "true":
+                    cb.add_config(              '  ospfv3 passive-interface')
+
+        active_priority = activePriority if activePriority else "120"
+
+        if redundancyType == "hsrp":
+            if HSRP_VERSION == "2":
+                cb.add_config(                  '  hsrp version 2')
+            if gatewayIpAddress:
+                cb.add_configs([                '  hsrp $GROUP',
+                                                '    ip '+VIP])
+
+                if ignorePriority != "true":
+                    if isActive == "true":
+                        if active_priority and active_priority != "100":
+                            cb.add_config(          '    priority ' + active_priority)
+                    else:
+                        if standbyPriority and standbyPriority != "100":
+                            cb.add_config(          '    priority $standbyPriority')
+                # preempt is default
+                preemptCfg = preemptConfig(preempt, minimum, reload, sync)
+                if preemptCfg != None:
+                    cb.add_config(          preemptCfg)
+                if mac:
+                    cb.add_config(          '    mac-address $mac')
+                if md5AuthKeyStr:
+                    cb.add_config(          '    authentication md5 key-string ' + md5AuthKeyStr)
+            if gatewayIpV6Address:
+                cb.add_configs([                '  hsrp $GROUP_V6 ipv6',
+                                                '    ip '+ipv6_VIP])
+                if ignorePriority != "true":
+                    if isActive == "true":
+                        if active_priority and active_priority != "100":
+                            cb.add_config(          '    priority ' + active_priority)
+                    else:
+                        if standbyPriority and standbyPriority != "100":
+                            cb.add_config(          '    priority $standbyPriority')
+                # preempt is default
+                preemptCfg = preemptConfig(preempt, minimum, reload, sync)
+                if preemptCfg != None:
+                    cb.add_config(          preemptCfg)
+                if mac:
+                    cb.add_config(          '    mac-address $mac')
+                if md5AuthKeyStr:
+                    cb.add_config(          '    authentication md5 key-string ' + md5AuthKeyStr)
+
+        elif "vrrp" in redundancyType:
+            # VRRP or VRRPv3
+            if gatewayIpAddress:
+                if redundancyType == "vrrp":
+                    cb.add_configs([            '  vrrp $GROUP',
+                                                '    address '+VIP])
+                else:
+                    cb.add_configs([            '  vrrpv3 $GROUP address-family ipv4',
+                                                '    address ' + VIP + ' primary'])
+
+                if ignorePriority != "true":
+                    if isActive == "true":
+                        if active_priority and active_priority != "100":
+                            cb.add_config(          '    priority ' + active_priority)
+                    else:
+                        if standbyPriority and standbyPriority != "100":
+                            cb.add_config(          '    priority $standbyPriority')
+                # preempt is default
+                preemptCfg = preemptConfig(preempt, minimum, reload, sync)
+                if preemptCfg != None:
+                    cb.add_config(          preemptCfg)
+                if VRRP_ENABLE == "true":
+                    if redundancyType == "vrrp":
+                        cb.add_config(          '    no shutdown')
+                    # "no shut" is not in "sh run" for vrrpv3
+                else:
+                    cb.add_config(              '    shutdown')
+
+                #If vrrp is enabled, not vrrpv3 and platform is N7k then need to insert additional exit in the intent
+                model = Util.exe(InventoryWrapper.getSwitchModel(SERIAL_NUMBER))
+                if model.startswith("N7") and redundancyType == "vrrp":
+                    cb.add_config(              '    exit')
+
+            if gatewayIpV6Address:
+                cb.add_configs([                '  vrrpv3 $GROUP_V6 address-family ipv6',
+                                                '    address $ipv6_linklocal_vip primary',
+                                                '    address ' + ipv6_VIP])
+
+                if ignorePriority != "true":
+                    if isActive == "true":
+                        if active_priority and active_priority != "100":
+                            cb.add_config(          '    priority ' + active_priority)
+                    else:
+                        if standbyPriority and standbyPriority != "100":
+                            cb.add_config(          '    priority $standbyPriority')
+
+                # preempt is default
+                preemptCfg = preemptConfig(preempt, minimum, reload, sync)
+                if preemptCfg != None:
+                    cb.add_config(          preemptCfg)
+
+                if VRRP_ENABLE != "true":
+                    cb.add_config(              '    shutdown')
+
+        genconfig = Template(cb.get_config()).substitute(getGlobals({"tag_str":tag_str}))
+        #Wrapper.print("genConfig %s" %genconfig)
+        respObj.setGeneratedConfig(genconfig)
+        respObj.setSuccessRetCode()
+        return respObj
+    except respObjError as e:
+        Wrapper.print("Network_Classic exception!")
+        return e.value
+
+def preemptConfig(preempt, minimum, reload, sync):
+    preemptCfg = None
+    minimum = 0 if minimum in ["","0"]  else minimum
+    reload = 0 if reload in ["","0"] else reload
+    sync = 0 if sync in ["","0"] else sync
+    Wrapper.print("Network_Classic: preemptConfig minimum %s, reload %s, sync %s"%(minimum, reload, sync))
+    if preempt != "true":
+        preemptCfg = '    no preempt'
+        return preemptCfg
+    if minimum != 0  and reload != 0 and sync != 0:
+        preemptCfg = '    preempt delay' + ' minimum ' + minimum + ' reload ' + reload + ' sync ' + sync
+    elif minimum != 0  and reload != 0 and sync == 0:
+        preemptCfg = '    preempt delay' + ' minimum ' + minimum + ' reload ' + reload
+    elif minimum != 0  and reload == 0 and  sync != 0:
+        preemptCfg = '    preempt delay' + ' minimum ' + minimum + ' sync ' + sync
+    elif  minimum == 0 and reload != 0 and sync != 0:
+        preemptCfg = '    preempt delay' + ' reload ' + reload + ' sync ' + sync
+    elif minimum != 0  and reload == 0 and sync == 0:
+        preemptCfg = '    preempt delay' + ' minimum ' + minimum
+    elif minimum == 0  and reload != 0 and sync == 0:
+        preemptCfg = '    preempt delay' + ' reload ' + reload
+    elif minimum == 0  and reload == 0 and sync != 0:
+        preemptCfg = '    preempt delay' + ' sync ' + sync
+    elif preempt == "true" and minimum == 0  and reload == 0 and sync == 0:
+        preemptCfg = '    preempt'
+    return preemptCfg
+
+def unattach(dictObj, update = False):
+    try:
+        Wrapper.print("Network_Classic: unattach vlan %s, %s, update %s, dictObj %s" % (vlanId, networkName, update, dictObj))
+
+        respObj = WrappersResp.getRespObj()
+        respObj.setSuccessRetCode()
+        return respObj
+    except respObjError as e:
+        return e.value
+
+
+def delete(force=False):
+    try:
+        Wrapper.print("Network_Classic delete")
+        respObj = WrappersResp.getRespObj()
+        respObj.setSuccessRetCode()
+        return respObj
+    except respObjError as e:
+        return e.value
+
+def add():
+    Wrapper.print("Network_Classic: add %s in fabric %s" % (networkName, FABRIC_NAME))
+    respObj = WrappersResp.getRespObj()
+    errorMsg = ""
+
+    try:
+        ipv6_gateway_ip = gatewayIpV6Address
+    except:
+        ipv6_gateway_ip = ""
+    try:
+        v6_pip1 = ipv6_pip1
+        v6_pip2 = ipv6_pip2
+    except:
+        v6_pip1 = v6_pip2 = ""
+    try:
+        v6_linklocal_vip = ipv6_linklocal_vip
+    except:
+        v6_linklocal_vip = ""
+
+    #Get FHRP protocol from the fabric settings
+    fhrp_protocol = Util.exe(FabricWrapper.get(FABRIC_NAME)).nvPairs.get("FHRP_PROTOCOL","hsrp")
+    
+    if isLayer2Only == "true" or fhrp_protocol == "none":
+        respObj.setSuccessRetCode()
+        return respObj
+    else:
+        if not gatewayIpAddress and not ipv6_gateway_ip:
+            errorMsg = "Need to provide gateway IPv4 or IPv6 address for non Layer 2 network. "
+            Wrapper.print(errorMsg)
+            respObj.addErrorReport("add", errorMsg)
+            respObj.setFailureRetCode()
+            return respObj
+
+    if fhrp_protocol == "hsrp":
+        if HSRP_VERSION != "2" and int(GROUP) > 255:
+            errorMsg += ("HSRP version 1 group number must be in the range of 0-255. ")
+    elif "vrrp" in fhrp_protocol:
+        if int(GROUP) == 0 or int(GROUP) > 255:
+            errorMsg += ("VRRP group number must be in the range of 1-255. ")
+
+        if GROUP_V6 != "":
+            if int(GROUP_V6) == 0 or int(GROUP_V6) > 255:
+                errorMsg += ("VRRP group number for IPv6 must be in the range of 1-255. ")
+
+    active_priority = int(activePriority) if activePriority else 120
+    standby_priority = int(standbyPriority) if standbyPriority else 100
+    if active_priority <= standby_priority and ignorePriority != "true":
+        errorMsg += "Active/master Priority must be greater than standby/backup Priority. "
+    
+    if fhrp_protocol == "vrrp" or fhrp_protocol == "vrrpv3":
+        if ignorePriority != "true" and (active_priority == 255 or standby_priority == 0):
+            errorMsg += ("VRRP Priority must be in the range of 1-254. ")
+    
+    if fhrp_protocol == "vrrpv3":
+        if ipv6_gateway_ip and not v6_linklocal_vip:
+            errorMsg += ("VRRPv3 requires IPv6 link-local VIP to be specified. ")
+        elif ipv6_gateway_ip and v6_linklocal_vip and (len(v6_linklocal_vip) < 4 or v6_linklocal_vip[:4].lower() != "fe80"):
+            errorMsg += ("IPv6 VIP Link local address needs to start with 'fe80'. ")
+
+    if pip1 != "" and pip2 != "":
+        (VIP,PREFIX) = gatewayIpAddress.split('/')
+
+        if VIP == pip1 or VIP == pip2:
+            errorMsg += "%s VIP overlaps with IP address on interface. " % networkName
+
+        if pip1 == pip2:
+            errorMsg += "%s IP addresses on two interfaces overlap with each other. " % networkName
+
+        subnet = Util.getSubnetStringWithPrefix(VIP, PREFIX)
+        if subnet != Util.getSubnetStringWithPrefix(pip1, PREFIX):
+            errorMsg += ("%s VIP subnet %s/%s mismatch with interface IP %s. " % (networkName, VIP, PREFIX, pip1))
+
+        if subnet != Util.getSubnetStringWithPrefix(pip2, PREFIX):
+            errorMsg += ("%s VIP subnet %s/%s mismatch with interface IP %s. " % (networkName, VIP, PREFIX, pip2))
+
+        ipv4HostAllZero = subnet.split("/")[0]
+        subnetIpInt = Util.IP2Int(ipv4HostAllZero)
+        hostAreaMax = 0xFFFFFFFF >> int(PREFIX)
+        broadcastIP = Util.Int2IP(subnetIpInt + hostAreaMax)
+
+        if VIP == ipv4HostAllZero:
+            errorMsg += ("%s VIP %s: host address part cannot be all 0s. " % (networkName, VIP))
+        elif VIP == broadcastIP:
+            errorMsg += ("%s VIP %s: host address part cannot be all 1s. " % (networkName, VIP))
+
+        if pip1 == ipv4HostAllZero:
+            errorMsg += ("%s interface IPv4 address %s: host address part cannot be all 0s. " % (networkName, pip1))
+        elif pip1 == broadcastIP:
+            errorMsg += ("%s interface IPv4 address %s: host address part cannot be all 1s. " % (networkName, pip1))
+
+        if pip2 == ipv4HostAllZero:
+            errorMsg += ("%s interface IPv4 address %s: host address part cannot be all 0s. " % (networkName, pip2))
+        elif pip2 == broadcastIP:
+            errorMsg += ("%s interface IPv4 address %s: host address part cannot be all 1s. " % (networkName, pip2))
+
+    if ipv6_gateway_ip:
+        if v6_pip1 != "" or v6_pip2 != "":
+            if redundancyType == "hsrp" and HSRP_VERSION != "2":
+                errorMsg += "HSRP V6 groups are not supported on HSRP version 1 interface. Please select version 2 for HSRP V6."
+
+            (ipv6_VIP,ipv6_PREFIX) = ipv6_gateway_ip.split('/')
+
+            if ipv6_VIP == v6_pip1 or ipv6_VIP == v6_pip2:
+                errorMsg += "%s VIP overlaps with IPv6 address on interface. " % networkName
+
+            if v6_pip1 == v6_pip2:
+                errorMsg += "%s IPv6 addresses on two interfaces overlap with each other. " % networkName
+
+            subnet = Util.getV6SubnetStringWithPrefix(ipv6_VIP, ipv6_PREFIX)
+            if subnet != Util.getV6SubnetStringWithPrefix(v6_pip1, ipv6_PREFIX):
+                errorMsg += ("%s IPv6 VIP subnet %s/%s mismatch with interface IPv6 %s. " % (networkName, ipv6_VIP, ipv6_PREFIX, v6_pip1))
+
+            if subnet != Util.getV6SubnetStringWithPrefix(v6_pip2, ipv6_PREFIX):
+                errorMsg += ("%s IPv6 VIP subnet %s/%s mismatch with interface IPv6 %s. " % (networkName, ipv6_VIP, ipv6_PREFIX, v6_pip2))
+
+            hostMask = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF >> int(ipv6_PREFIX)
+            if (Util.v6IP2Int(ipv6_VIP) & hostMask) == 0:
+                errorMsg += ("%s IPv6 VIP %s: host address part cannot be all 0s. " % (networkName, ipv6_VIP))
+            elif (Util.v6IP2Int(v6_pip1) & hostMask) == 0:
+                errorMsg += ("%s interface IPv6 address %s: host address part cannot be all 0s. " % (networkName, v6_pip1))
+            elif (Util.v6IP2Int(v6_pip2) & hostMask) == 0:
+                errorMsg += ("%s interface IPv6 address %s: host address part cannot be all 0s. " % (networkName, v6_pip2))
+
+        if mtu and int(mtu) < 1280:
+            errorMsg += ("MTU must be no less than 1280 for interfaces with IPv6 address")
+
+    if errorMsg:
+        respObj.addErrorReport("add", errorMsg)
+        respObj.setFailureRetCode()
+    else:
+        respObj.setSuccessRetCode()
+
+    return respObj
+
+##
